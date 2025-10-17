@@ -11,7 +11,7 @@ A lightweight command-line tool that discovers the devices on your local IPv4 ne
 - Ships with a minimalist Flask web UI for ad-hoc scans and per-host ping tests.
 - Optional live refresh mode for continuous monitoring.
 - JSON output for scripting or integration.
-
+- Web Interface
 ## Requirements
 
 - Python 3.9 or newer.
@@ -53,9 +53,9 @@ Example output:
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┓
 ┃ IP           ┃ Hostname    ┃ MAC              ┃ Vendor         ┃ Latency┃ Status   ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━┩
-│ 192.168.1.1  │ Router      │ 40:B0:76:12:34:56│ TP-Link        │ 2.0 ms │ 🟢 Online │
-│ 192.168.1.42 │ Desktop-PC  │ D4:6D:6D:98:76:54│ Apple          │ 15.4 ms│ 🟢 Online │
-│ 192.168.1.99 │ —           │ —                │ Unknown        │ —      │ 🔴 Offline│
+│ 192.168.1.1  │ Router      │ 40:B0:76:12:34:56│ TP-Link        │ 2.0 ms │  Online │
+│ 192.168.1.42 │ Desktop-PC  │ D4:6D:6D:98:76:54│ Apple          │ 15.4 ms│  Online │
+│ 192.168.1.99 │ —           │ —                │ Unknown        │ —      │  Offline│
 └──────────────┴─────────────┴──────────────────┴────────────────┴────────┴──────────┘
 Hosts scanned: 254 • Online: 2 • Duration: 3.12s • Started: 2024-05-27T18:13:42.123456Z
 ```
@@ -76,9 +76,3 @@ Then visit `http://127.0.0.1:5000/` to:
 - Run on-demand ping tests for any discovered device.
 - Save the most recent scan as a JSON file via the UI.
 - Trigger scans programmatically with `POST /api/scan` or fetch the latest result from `GET /api/last-scan`.
-
-## Notes & Future Ideas
-
-- Refresh mode relies on terminal control — run it in a typical shell (TTY) for best CLI results.
-- Vendor detection reads the bundled `data/mac_vendors.json` file. Replace or extend it with your own dataset as needed.
-- Next up: uptime history, alerts for new devices, and richer exports (CSV, HTML).

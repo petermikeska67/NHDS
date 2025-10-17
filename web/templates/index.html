@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Network Health &amp; Device Scanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <header>
+      <h1>Network Health &amp; Device Scanner</h1>
+      <p class="tagline">Discover devices on your network, verify their status, and run quick connectivity tests.</p>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Run a Scan</h2>
+        <form method="post" class="scan-form">
+          <div class="field">
+            <label for="cidr">CIDR</label>
+            <input type="text" id="cidr" name="cidr" value="{{ form.cidr }}" placeholder="Auto-detect (e.g. 192.168.1.0/24)" />
+          </div>
+          <div class="field">
+            <label for="concurrency">Concurrency</label>
+            <input type="number" min="1" id="concurrency" name="concurrency" value="{{ form.concurrency }}" />
+          </div>
+          <div class="field">
+            <label for="timeout">Ping Timeout (seconds)</label>
+            <input type="number" step="0.1" min="0.1" id="timeout" name="timeout" value="{{ form.timeout }}" />
+          </div>
+          <div class="field">
+            <label for="vendor_file">Vendor Map File</label>
+            <input type="text" id="vendor_file" name="vendor_file" value="{{ form.vendor_file }}" placeholder="Optional path to JSON file" />
+          </div>
+          <div class="actions">
+            <button type="submit">Run Scan</button>
+          </div>
+        </form>
+        {% if error %}
+        <p class="message error">{{ error }}</p>
+        {% endif %}
+      </section>
+
+      {% if result %}
+      <section class="card">
+        <h2>Latest Scan</h2>
+        <p class="meta">
+          Network: <strong>{{ result.network }}</strong> |
+          Started: <strong>{{ result.started_at.isoformat() }}Z</strong> |
+          Duration: <strong>{{ '%.2f'|format(result.duration_s) }}s</strong> |
+          Hosts: <strong>{{ result.devices|length }}</strong>
+        </p>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Hostname</th>
+                <th>MAC</th>
+                <th>Vendor</th>
+                <th>Latency</th>
+                <th>Status</th>
+                <th>Test</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for device in result.devices %}
+              <tr data-ip="{{ device.ip }}">
+                <td>{{ device.ip }}</td>
+                <td>{{ device.hostname or '—' }}</td>
+                <td>{{ device.mac or '—' }}</td>
+                <td>{{ device.vendor or 'Unknown' }}</td>
+                <td>{{ device.latency_ms and ('%.1f ms'|format(device.latency_ms)) or '—' }}</td>
+                <td>
+                  {% if device.online %}
+                  <span class="status online">🟢 Online</span>
+                  {% else %}
+                  <span class="status offline">🔴 Offline</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="ping-button" data-ip="{{ device.ip }}">Ping</button>
+                  <span class="ping-result" id="ping-{{ device.ip|replace('.', '-') }}"></span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions secondary">
+          <button id="download-json">Download JSON</button>
+        </div>
+      </section>
+      {% endif %}
+    </main>
+
+    <footer>
+      <p>Need automation? Use the <code>POST {{ api_url }}</code> endpoint to trigger scans programmatically.</p>
+    </footer>
+
+    <script>
+      const pingButtons = document.querySelectorAll('.ping-button');
+      const downloadButton = document.getElementById('download-json');
+
+      pingButtons.forEach((button) => {
+        button.addEventListener('click', async (event) => {
+          const ip = event.currentTarget.dataset.ip;
+          const output = document.getElementById(`ping-${ip.replaceAll('.', '-')}`);
+          output.textContent = 'Testing…';
+          try {
+            const response = await fetch('{{ url_for("ping_test") }}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              output.textContent = data.error || 'Ping failed';
+              output.className = 'ping-result error';
+              return;
+            }
+            output.className = 'ping-result ' + (data.online ? 'online' : 'offline');
+            if (data.online) {
+              const latency = data.latency_ms !== null ? `${data.latency_ms.toFixed(1)} ms` : '—';
+              output.textContent = `Online (${latency})`;
+            } else {
+              output.textContent = 'Offline';
+            }
+          } catch (err) {
+            output.textContent = 'Ping failed';
+            output.className = 'ping-result error';
+          }
+        });
+      });
+
+      if (downloadButton) {
+        downloadButton.addEventListener('click', async () => {
+          try {
+            const response = await fetch('{{ url_for("api_last_scan") }}');
+            if (!response.ok) {
+              alert('No scan data available yet.');
+              return;
+            }
+            const data = await response.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'scan-result.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            alert('Failed to download scan data.');
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

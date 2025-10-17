@@ -1,0 +1,192 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #10161a;
+  color: #f5f7fa;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header,
+footer {
+  background: #0b1014;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.tagline {
+  margin-top: 0.25rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+main {
+  flex: 1;
+  padding: 2rem;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.card {
+  background: rgba(13, 20, 25, 0.9);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.scan-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-weight: 600;
+}
+
+.field input {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.actions button {
+  padding: 0.7rem 1.4rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  background: #2f80ed;
+  color: #fff;
+  transition: background 0.2s ease;
+}
+
+.actions button:hover {
+  background: #1864c7;
+}
+
+.actions.secondary button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.actions.secondary button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message.error {
+  margin-top: 1rem;
+  color: #ff8b8b;
+  font-weight: 600;
+}
+
+.meta {
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(5, 10, 15, 0.9);
+}
+
+th,
+td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+}
+
+.status.online {
+  color: #6ede8a;
+}
+
+.status.offline {
+  color: #ff7d7d;
+}
+
+.ping-button {
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.ping-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ping-result {
+  display: inline-block;
+  margin-left: 0.6rem;
+}
+
+.ping-result.online {
+  color: #6ede8a;
+}
+
+.ping-result.offline {
+  color: #ff7d7d;
+}
+
+.ping-result.error {
+  color: #ff9f7d;
+}
+
+footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+footer code {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.4rem;
+}

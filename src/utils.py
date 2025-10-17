@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 from ping3 import ping
+import requests
 
 # Ensure ping3 raises exceptions for better error handling.
 try:
@@ -23,8 +24,16 @@ except Exception:
     # Fallback is harmless; ping3 will simply return None on errors.
     pass
 
+try:  # Optional import; ARP scanning is best-effort.
+    from scapy.all import ARP, Ether, srp  # type: ignore
+except Exception:  # pragma: no cover - scapy may not be installed or usable.
+    ARP = Ether = srp = None
+
 
 DEFAULT_NETMASK = 24
+MAC_VENDOR_API = "https://www.macvendorlookup.com/api/v2/{mac}"
+_VENDOR_CACHE: Dict[str, Optional[str]] = {}
+_REQUEST_SESSION = requests.Session()
 
 
 def get_local_ip() -> str:
@@ -92,17 +101,63 @@ def _run_arp(ip: str) -> Optional[str]:
 
 
 MAC_REGEX = re.compile(r"([0-9a-f]{2}(?::[0-9a-f]{2}){5})", re.IGNORECASE)
+ARP_UNIX_REGEX = re.compile(
+    r"\((?P<ip>\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+(?P<mac>[0-9a-f:-]{11,17})",
+    re.IGNORECASE,
+)
+ARP_WINDOWS_REGEX = re.compile(
+    r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+(?P<mac>[0-9a-f-]{11,17})\s+\w+",
+    re.IGNORECASE,
+)
+
+
+def normalize_mac(mac: Optional[str]) -> Optional[str]:
+    """Return a canonical MAC representation (AA:BB:CC:DD:EE:FF)."""
+    if not mac:
+        return None
+    mac = mac.strip().upper().replace("-", ":")
+    parts = mac.split(":")
+    if len(parts) != 6:
+        return None
+    return ":".join(part.zfill(2) for part in parts)
+
+
+def read_system_arp_table() -> Dict[str, str]:
+    """Parse the system ARP table and return an IP→MAC mapping."""
+    system = platform.system().lower()
+    if system == "windows":
+        command = ["arp", "-a"]
+    else:
+        command = ["arp", "-an"]
+
+    try:
+        output = subprocess.check_output(
+            command, stderr=subprocess.DEVNULL, text=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return {}
+
+    table: Dict[str, str] = {}
+    for line in output.splitlines():
+        match = ARP_UNIX_REGEX.search(line) or ARP_WINDOWS_REGEX.search(line)
+        if not match:
+            continue
+        ip = match.group("ip")
+        mac = normalize_mac(match.group("mac"))
+        if ip and mac:
+            table[ip] = mac
+    return table
 
 
 def get_mac_address(ip: str) -> Optional[str]:
     """Return the MAC address for the given IP if available in the ARP cache."""
     output = _run_arp(ip)
-    if not output:
-        return None
-    match = MAC_REGEX.search(output)
-    if match:
-        return match.group(1).upper()
-    return None
+    if output:
+        match = MAC_REGEX.search(output)
+        if match:
+            return normalize_mac(match.group(1))
+    # Fallback to table snapshot.
+    return read_system_arp_table().get(ip)
 
 
 def load_vendor_map(path: Path) -> Dict[str, str]:
@@ -114,12 +169,75 @@ def load_vendor_map(path: Path) -> Dict[str, str]:
     return {prefix.upper(): vendor for prefix, vendor in data.items()}
 
 
-def lookup_vendor(mac: Optional[str], vendor_map: Dict[str, str]) -> Optional[str]:
-    """Infer the vendor name from a MAC address."""
-    if not mac:
+def fetch_vendor_from_api(canonical_mac: str) -> Optional[str]:
+    """Query the external API for vendor details."""
+    try:
+        response = _REQUEST_SESSION.get(
+            MAC_VENDOR_API.format(mac=canonical_mac), timeout=5
+        )
+    except requests.RequestException:
         return None
-    prefix = mac.upper()[0:8]
-    return vendor_map.get(prefix)
+    if response.status_code != 200:
+        return None
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+
+    vendor_name: Optional[str] = None
+    if isinstance(payload, list) and payload:
+        vendor_name = payload[0].get("company") or payload[0].get("vendor")
+    elif isinstance(payload, dict):
+        vendor_name = payload.get("company") or payload.get("vendor")
+
+    if vendor_name:
+        vendor_name = vendor_name.strip()
+    return vendor_name or None
+
+
+def lookup_vendor(mac: Optional[str], vendor_map: Dict[str, str]) -> Optional[str]:
+    """Infer the vendor name from a MAC address, using local data then remote API."""
+    canonical = normalize_mac(mac)
+    if not canonical:
+        return None
+    prefix = canonical[:8]
+
+    vendor = vendor_map.get(prefix)
+    if vendor:
+        return vendor
+
+    if prefix in _VENDOR_CACHE:
+        return _VENDOR_CACHE[prefix]
+
+    vendor = fetch_vendor_from_api(canonical)
+    _VENDOR_CACHE[prefix] = vendor
+    if vendor:
+        vendor_map[prefix] = vendor
+    return vendor
+
+
+def arp_scan(network: ipaddress.IPv4Network, timeout: float = 2.0) -> Dict[str, str]:
+    """Perform a best-effort ARP scan and return IP→MAC mapping."""
+    if ARP is None or Ether is None or srp is None:
+        return {}
+    try:
+        answered, _ = srp(
+            Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=str(network)),
+            timeout=timeout,
+            verbose=False,
+        )
+    except PermissionError:
+        return {}
+    except Exception:
+        return {}
+
+    mapping: Dict[str, str] = {}
+    for _, response in answered:
+        ip = getattr(response, "psrc", None)
+        mac = normalize_mac(getattr(response, "hwsrc", None))
+        if ip and mac:
+            mapping[ip] = mac
+    return mapping
 
 
 async def run_in_executor(func, *args):

@@ -6,17 +6,19 @@ A lightweight command-line tool that discovers the devices on your local IPv4 ne
 
 - Auto-detects your local `/24` subnet (or target a custom CIDR).
 - Concurrently pings hosts to determine reachability and latency.
+- Filters out inactive addresses so you only see discovered devices.
 - Resolves hostnames, fetches MAC addresses from ARP, and maps vendors via OUI prefixes.
 - Renders a Rich-powered table with online/offline status indicators.
 - Ships with a minimalist Flask web UI for ad-hoc scans and per-host ping tests.
 - Optional live refresh mode for continuous monitoring.
 - JSON output for scripting or integration.
-- Web Interface
+
 ## Requirements
 
 - Python 3.9 or newer.
 - `ping` and `arp` commands available on the system (macOS, Linux, and Windows are supported).
-- Optional: elevated privileges can improve ARP accuracy on some systems.
+- `scapy` (installed via `pip`) is used for fast ARP discovery when available.
+- Optional: elevated privileges improve ARP discovery accuracy on some systems.
 
 ## Install
 
@@ -53,9 +55,9 @@ Example output:
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┓
 ┃ IP           ┃ Hostname    ┃ MAC              ┃ Vendor         ┃ Latency┃ Status   ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━┩
-│ 192.168.1.1  │ Router      │ 40:B0:76:12:34:56│ TP-Link        │ 2.0 ms │  Online │
-│ 192.168.1.42 │ Desktop-PC  │ D4:6D:6D:98:76:54│ Apple          │ 15.4 ms│  Online │
-│ 192.168.1.99 │ —           │ —                │ Unknown        │ —      │  Offline│
+│ 192.168.1.1  │ Router      │ 40:B0:76:12:34:56│ TP-Link        │ 2.0 ms │ 🟢 Online │
+│ 192.168.1.42 │ Desktop-PC  │ D4:6D:6D:98:76:54│ Apple          │ 15.4 ms│ 🟢 Online │
+│ 192.168.1.99 │ —           │ —                │ Unknown        │ —      │ 🔴 Offline│
 └──────────────┴─────────────┴──────────────────┴────────────────┴────────┴──────────┘
 Hosts scanned: 254 • Online: 2 • Duration: 3.12s • Started: 2024-05-27T18:13:42.123456Z
 ```

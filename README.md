@@ -7,7 +7,7 @@ A lightweight command-line tool that discovers the devices on your local IPv4 ne
 - Auto-detects your local `/24` subnet (or target a custom CIDR).
 - Concurrently pings hosts to determine reachability and latency.
 - Filters out inactive addresses so you only see discovered devices.
-- Resolves hostnames, fetches MAC addresses from ARP, and maps vendors via OUI prefixes.
+- Resolves hostnames, fetches MAC addresses from ARP, and maps vendors via OUI prefixes (with automatic lookups against macvendorlookup.com when needed).
 - Renders a Rich-powered table with online/offline status indicators.
 - Ships with a minimalist Flask web UI for ad-hoc scans and per-host ping tests.
 - Optional live refresh mode for continuous monitoring.
@@ -18,6 +18,7 @@ A lightweight command-line tool that discovers the devices on your local IPv4 ne
 - Python 3.9 or newer.
 - `ping` and `arp` commands available on the system (macOS, Linux, and Windows are supported).
 - `scapy` (installed via `pip`) is used for fast ARP discovery when available.
+- Outbound HTTPS access to `macvendorlookup.com` (optional but recommended for vendor enrichment).
 - Optional: elevated privileges improve ARP discovery accuracy on some systems.
 
 ## Install
@@ -78,3 +79,10 @@ Then visit `http://127.0.0.1:5000/` to:
 - Run on-demand ping tests for any discovered device.
 - Save the most recent scan as a JSON file via the UI.
 - Trigger scans programmatically with `POST /api/scan` or fetch the latest result from `GET /api/last-scan`.
+
+## Notes & Future Ideas
+
+- Refresh mode relies on terminal control — run it in a typical shell (TTY) for best CLI results.
+- Vendor detection reads the bundled `data/mac_vendors.json` file; extend it with your own dataset as needed.
+- When the local map lacks a prefix, the tool queries https://www.macvendorlookup.com/api for the manufacturer name (results are cached per run).
+- Next up: uptime history, alerts for new devices, and richer exports (CSV, HTML).

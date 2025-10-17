@@ -1,3 +1,5 @@
 ping3
 rich
 Flask
+scapy
+requests

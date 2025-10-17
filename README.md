@@ -1,4 +1,4 @@
-# Network Health & Device Scanner (MVP)
+# Network Health & Device Scanner
 
 A lightweight command-line tool that discovers the devices on your local IPv4 network, checks their reachability, and presents the results in a readable table or JSON payload. Perfect for quickly answering _“Who’s on my Wi-Fi, and are they online?”_
 

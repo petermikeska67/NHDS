@@ -80,9 +80,5 @@ Then visit `http://127.0.0.1:5000/` to:
 - Save the most recent scan as a JSON file via the UI.
 - Trigger scans programmatically with `POST /api/scan` or fetch the latest result from `GET /api/last-scan`.
 
-## Notes & Future Ideas
-
-- Refresh mode relies on terminal control — run it in a typical shell (TTY) for best CLI results.
-- Vendor detection reads the bundled `data/mac_vendors.json` file; extend it with your own dataset as needed.
-- When the local map lacks a prefix, the tool queries https://www.macvendorlookup.com/api for the manufacturer name (results are cached per run).
+## Future Ideas
 - Next up: uptime history, alerts for new devices, and richer exports (CSV, HTML).

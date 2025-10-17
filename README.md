@@ -80,5 +80,8 @@ Then visit `http://127.0.0.1:5000/` to:
 - Save the most recent scan as a JSON file via the UI.
 - Trigger scans programmatically with `POST /api/scan` or fetch the latest result from `GET /api/last-scan`.
 
-## Future Ideas
-- Next up: uptime history, alerts for new devices, and richer exports (CSV, HTML).
+## Gimmicky Features
+- Discord webhook for sening messages and updates
+- Webhook for sending messages and updates
+
+

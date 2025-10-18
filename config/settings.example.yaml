@@ -1,0 +1,28 @@
+network:
+  default_cidr: null
+  concurrency: 64
+  timeout: 1.0
+  vendor_remote: true
+  vendor_refresh: false
+  arp_timeout: 2.0
+  history_max: 100
+  history_path: data/scan_history.json
+
+notifications:
+  enabled: false
+  webhook_url: ""
+  secret: ""
+  timeout: 5.0
+  discord_webhook_url: ""
+
+web:
+  require_auth: false
+  auth_token: ""
+
+devices:
+  - ip: "192.168.1.1"
+    name: "Gateway"
+    tags: ["infrastructure"]
+  - mac_prefix: "D4:6D:6D"
+    name: "MacBook Pro"
+    tags: ["laptop", "personal"]

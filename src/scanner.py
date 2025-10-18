@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
-from . import utils
+from . import config, utils
 
 
 @dataclass(slots=True)
@@ -22,6 +22,22 @@ class DeviceRecord:
     vendor: Optional[str]
     latency_ms: Optional[float]
     online: bool
+    is_new: bool = False
+    alias_name: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ip": self.ip,
+            "hostname": self.hostname,
+            "mac": self.mac,
+            "vendor": self.vendor,
+            "latency_ms": self.latency_ms,
+            "online": self.online,
+            "is_new": self.is_new,
+            "alias_name": self.alias_name,
+            "tags": self.tags,
+        }
 
 
 @dataclass(slots=True)
@@ -32,6 +48,16 @@ class ScanResult:
     started_at: datetime
     duration_s: float
     devices: List[DeviceRecord]
+    diagnostics: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "network": str(self.network),
+            "started_at": self.started_at.isoformat() + "Z",
+            "duration_s": self.duration_s,
+            "devices": [device.to_dict() for device in self.devices],
+            "diagnostics": self.diagnostics,
+        }
 
 
 def default_vendor_file() -> Path:
@@ -44,6 +70,9 @@ async def _probe_ip(
     vendor_map,
     ping_timeout: float,
     mac_lookup: Dict[str, str],
+    *,
+    enable_vendor_remote: bool,
+    vendor_force_refresh: bool,
 ) -> Optional[DeviceRecord]:
     """Probe a single IP address and build a device record if reachable."""
     pre_mac = mac_lookup.get(ip)
@@ -56,7 +85,15 @@ async def _probe_ip(
     mac = pre_mac or await utils.run_in_executor(utils.get_mac_address, ip)
     if mac and not pre_mac:
         mac_lookup[ip] = mac
-    vendor = utils.lookup_vendor(mac, vendor_map)
+    vendor = utils.lookup_vendor(
+        mac,
+        vendor_map,
+        enable_remote=enable_vendor_remote,
+        force_remote=vendor_force_refresh,
+    )
+    alias = config.match_alias(ip, mac)
+    alias_name = alias.name if alias else None
+    tags = alias.tags if alias else []
 
     return DeviceRecord(
         ip=ip,
@@ -65,6 +102,8 @@ async def _probe_ip(
         vendor=vendor,
         latency_ms=latency,
         online=latency is not None or mac is not None,
+        alias_name=alias_name,
+        tags=tags,
     )
 
 
@@ -74,6 +113,9 @@ async def scan_network(
     concurrency: int = 64,
     ping_timeout: float = 1.0,
     vendor_map_path: Optional[Path] = None,
+    vendor_remote: bool = True,
+    vendor_force_refresh: bool = False,
+    arp_timeout: float = 2.0,
 ) -> ScanResult:
     """
     Scan the provided network and return structured results.
@@ -83,13 +125,26 @@ async def scan_network(
         concurrency: Maximum number of concurrent probes.
         ping_timeout: Ping timeout per host in seconds.
         vendor_map_path: Optional path to a MAC vendor map JSON file.
+        vendor_remote: Allow remote vendor lookups via macvendorlookup.com.
+        vendor_force_refresh: Force refreshing vendor data even when cached locally.
+        arp_timeout: Timeout (seconds) for ARP discovery via scapy.
     """
     vendor_map = utils.load_vendor_map(vendor_map_path or default_vendor_file())
-    mac_lookup = utils.arp_scan(network)
-    for ip, mac in utils.read_system_arp_table().items():
+    if vendor_force_refresh:
+        utils.clear_vendor_cache()
+    utils.reset_vendor_stats()
+
+    arp_result = utils.arp_scan(network, timeout=arp_timeout)
+    mac_lookup: Dict[str, str] = dict(arp_result.mapping)
+
+    system_arp_table = utils.read_system_arp_table()
+    system_arp_added = 0
+    for ip, mac in system_arp_table.items():
         try:
             if ipaddress.ip_address(ip) in network:
-                mac_lookup[ip] = mac
+                if ip not in mac_lookup:
+                    mac_lookup[ip] = mac
+                    system_arp_added += 1
         except ValueError:
             continue
 
@@ -98,15 +153,19 @@ async def scan_network(
 
     async def worker(ip: str) -> Optional[DeviceRecord]:
         async with semaphore:
-            return await _probe_ip(ip, vendor_map, ping_timeout, mac_lookup)
+            return await _probe_ip(
+                ip,
+                vendor_map,
+                ping_timeout,
+                mac_lookup,
+                enable_vendor_remote=vendor_remote,
+                vendor_force_refresh=vendor_force_refresh,
+            )
 
-    candidate_hosts = set(mac_lookup.keys())
-    if not candidate_hosts:
-        candidate_hosts.update(utils.iter_hosts(network))
+    candidate_hosts = set(utils.iter_hosts(network))
+    candidate_hosts.update(mac_lookup.keys())
 
-    host_iterable = list(candidate_hosts)
-
-    tasks = [asyncio.create_task(worker(ip)) for ip in host_iterable]
+    tasks = [asyncio.create_task(worker(ip)) for ip in candidate_hosts]
     devices: List[DeviceRecord] = []
     for task in asyncio.as_completed(tasks):
         try:
@@ -120,11 +179,23 @@ async def scan_network(
     devices.sort(key=lambda item: tuple(int(part) for part in item.ip.split(".")))
 
     duration = (datetime.utcnow() - started_at).total_seconds()
+    diagnostics = {
+        "arp_method": arp_result.method,
+        "arp_error": arp_result.error,
+        "arp_entries": len(arp_result.mapping),
+        "system_arp_entries": len(system_arp_table),
+        "system_arp_added": system_arp_added,
+        "candidate_hosts": len(candidate_hosts),
+        "vendor_remote_enabled": vendor_remote,
+        "vendor_force_refresh": vendor_force_refresh,
+        "vendor_stats": utils.get_vendor_stats(),
+    }
     return ScanResult(
         network=network,
         started_at=started_at,
         duration_s=duration,
         devices=devices,
+        diagnostics=diagnostics,
     )
 
 

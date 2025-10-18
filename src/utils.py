@@ -9,8 +9,9 @@ import platform
 import re
 import socket
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from ping3 import ping
 import requests
@@ -34,6 +35,13 @@ DEFAULT_NETMASK = 24
 MAC_VENDOR_API = "https://www.macvendorlookup.com/api/v2/{mac}"
 _VENDOR_CACHE: Dict[str, Optional[str]] = {}
 _REQUEST_SESSION = requests.Session()
+_VENDOR_STATS: Dict[str, int] = {
+    "local_hits": 0,
+    "cache_hits": 0,
+    "api_calls": 0,
+    "api_failures": 0,
+    "remote_disabled": 0,
+}
 
 
 def get_local_ip() -> str:
@@ -111,6 +119,31 @@ ARP_WINDOWS_REGEX = re.compile(
 )
 
 
+@dataclass(slots=True)
+class ArpScanResult:
+    """Details about an ARP scan attempt."""
+
+    mapping: Dict[str, str]
+    method: str
+    error: Optional[str] = None
+
+
+def clear_vendor_cache() -> None:
+    """Clear the in-memory vendor cache."""
+    _VENDOR_CACHE.clear()
+
+
+def reset_vendor_stats() -> None:
+    """Reset vendor lookup instrumentation."""
+    for key in list(_VENDOR_STATS.keys()):
+        _VENDOR_STATS[key] = 0
+
+
+def get_vendor_stats() -> Dict[str, int]:
+    """Return a snapshot of vendor lookup statistics."""
+    return dict(_VENDOR_STATS)
+
+
 def normalize_mac(mac: Optional[str]) -> Optional[str]:
     """Return a canonical MAC representation (AA:BB:CC:DD:EE:FF)."""
     if not mac:
@@ -171,17 +204,21 @@ def load_vendor_map(path: Path) -> Dict[str, str]:
 
 def fetch_vendor_from_api(canonical_mac: str) -> Optional[str]:
     """Query the external API for vendor details."""
+    _VENDOR_STATS["api_calls"] += 1
     try:
         response = _REQUEST_SESSION.get(
             MAC_VENDOR_API.format(mac=canonical_mac), timeout=5
         )
     except requests.RequestException:
+        _VENDOR_STATS["api_failures"] += 1
         return None
     if response.status_code != 200:
+        _VENDOR_STATS["api_failures"] += 1
         return None
     try:
         payload = response.json()
     except ValueError:
+        _VENDOR_STATS["api_failures"] += 1
         return None
 
     vendor_name: Optional[str] = None
@@ -192,11 +229,21 @@ def fetch_vendor_from_api(canonical_mac: str) -> Optional[str]:
 
     if vendor_name:
         vendor_name = vendor_name.strip()
-    return vendor_name or None
+    if vendor_name:
+        return vendor_name
+
+    _VENDOR_STATS["api_failures"] += 1
+    return None
 
 
-def lookup_vendor(mac: Optional[str], vendor_map: Dict[str, str]) -> Optional[str]:
-    """Infer the vendor name from a MAC address, using local data then remote API."""
+def lookup_vendor(
+    mac: Optional[str],
+    vendor_map: Dict[str, str],
+    *,
+    enable_remote: bool = True,
+    force_remote: bool = False,
+) -> Optional[str]:
+    """Infer the vendor name from a MAC address, using local data then optional remote API."""
     canonical = normalize_mac(mac)
     if not canonical:
         return None
@@ -204,10 +251,23 @@ def lookup_vendor(mac: Optional[str], vendor_map: Dict[str, str]) -> Optional[st
 
     vendor = vendor_map.get(prefix)
     if vendor:
+        _VENDOR_STATS["local_hits"] += 1
+        if not force_remote or not enable_remote:
+            return vendor
+        remote_vendor = fetch_vendor_from_api(canonical)
+        if remote_vendor:
+            vendor_map[prefix] = remote_vendor
+            _VENDOR_CACHE[prefix] = remote_vendor
+            return remote_vendor
         return vendor
 
-    if prefix in _VENDOR_CACHE:
+    if not force_remote and prefix in _VENDOR_CACHE:
+        _VENDOR_STATS["cache_hits"] += 1
         return _VENDOR_CACHE[prefix]
+
+    if not enable_remote:
+        _VENDOR_STATS["remote_disabled"] += 1
+        return None
 
     vendor = fetch_vendor_from_api(canonical)
     _VENDOR_CACHE[prefix] = vendor
@@ -216,10 +276,10 @@ def lookup_vendor(mac: Optional[str], vendor_map: Dict[str, str]) -> Optional[st
     return vendor
 
 
-def arp_scan(network: ipaddress.IPv4Network, timeout: float = 2.0) -> Dict[str, str]:
+def arp_scan(network: ipaddress.IPv4Network, timeout: float = 2.0) -> ArpScanResult:
     """Perform a best-effort ARP scan and return IP→MAC mapping."""
     if ARP is None or Ether is None or srp is None:
-        return {}
+        return ArpScanResult({}, "scapy_unavailable", "scapy is not installed")
     try:
         answered, _ = srp(
             Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=str(network)),
@@ -227,9 +287,9 @@ def arp_scan(network: ipaddress.IPv4Network, timeout: float = 2.0) -> Dict[str, 
             verbose=False,
         )
     except PermissionError:
-        return {}
-    except Exception:
-        return {}
+        return ArpScanResult({}, "scapy_permission_error", "insufficient permissions for raw sockets")
+    except Exception as exc:  # noqa: BLE001
+        return ArpScanResult({}, "scapy_failed", str(exc))
 
     mapping: Dict[str, str] = {}
     for _, response in answered:
@@ -237,7 +297,8 @@ def arp_scan(network: ipaddress.IPv4Network, timeout: float = 2.0) -> Dict[str, 
         mac = normalize_mac(getattr(response, "hwsrc", None))
         if ip and mac:
             mapping[ip] = mac
-    return mapping
+    method = "scapy_success" if mapping else "scapy_no_response"
+    return ArpScanResult(mapping, method)
 
 
 async def run_in_executor(func, *args):

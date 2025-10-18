@@ -19,6 +19,51 @@ footer {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.icon-button {
+  align-self: flex-start;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f5f7fa;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.45rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(20deg);
+}
+
+.icon-button:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.settings-card {
+  display: none;
+}
+
+.settings-card.visible {
+  display: block;
+}
+
+
 header h1 {
   margin: 0;
   font-size: 1.75rem;
@@ -58,6 +103,17 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.settings-form {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -74,6 +130,21 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(0, 0, 0, 0.2);
   color: inherit;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .actions {
@@ -112,9 +183,48 @@ main {
   font-weight: 600;
 }
 
+.message.success {
+  margin-top: 1rem;
+  color: #6ede8a;
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+  margin-left: 0.35rem;
+}
+
+.badge.on {
+  color: #6ede8a;
+}
+
+.badge.off {
+  color: #ff9f7d;
+}
+
 .meta {
   margin-bottom: 1rem;
   color: rgba(255, 255, 255, 0.75);
+}
+
+.meta.secondary {
+  margin-top: -0.5rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.changes {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.35rem;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .table-wrapper {
@@ -148,6 +258,11 @@ th {
   color: #ff7d7d;
 }
 
+.tag.new {
+  color: #6ede8a;
+  font-weight: 600;
+}
+
 .ping-button {
   padding: 0.3rem 0.75rem;
   border-radius: 0.4rem;
@@ -177,6 +292,23 @@ th {
 
 .ping-result.error {
   color: #ff9f7d;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.history-time {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.history-summary {
+  color: rgba(255, 255, 255, 0.65);
 }
 
 footer {

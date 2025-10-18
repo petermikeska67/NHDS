@@ -3,3 +3,4 @@ rich
 Flask
 scapy
 requests
+PyYAML
